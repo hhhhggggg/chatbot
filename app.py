@@ -1,8 +1,6 @@
 # app.py
 import os
 import re
-import time
-import json
 import numpy as np
 import streamlit as st
 from typing import Dict, List, Tuple
@@ -79,14 +77,16 @@ def load_embedder(name: str):
     return SentenceTransformer(name, device="cpu")
 
 @st.cache_resource(show_spinner=True)
-def init_pinecone(api_key: str):
-    if not api_key:
+def init_pinecone(_api_key: str):
+    """언더스코어로 시작하는 인자는 Streamlit이 해시하지 않음"""
+    if not _api_key:
         raise ValueError("Pinecone API 키가 필요합니다.")
-    return Pinecone(api_key=api_key)
+    return Pinecone(api_key=_api_key)
 
 @st.cache_resource(show_spinner=False)
-def get_index(pc: Pinecone, index_name: str):
-    return pc.Index(index_name)
+def get_index(_pc: Pinecone, index_name: str):
+    """언더스코어로 시작하는 인자는 Streamlit이 해시하지 않음"""
+    return _pc.Index(index_name)
 
 # ----------------------------
 # RAG Core
