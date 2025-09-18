@@ -1,0 +1,6 @@
+streamlit>=1.36
+openai>=1.40
+pinecone>=5.0.0
+sentence-transformers
+rank-bm25
+numpy
