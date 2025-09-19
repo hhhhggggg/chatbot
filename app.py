@@ -38,42 +38,47 @@ st.title("유니베라 챗봇")
 with st.sidebar:
     st.header("⚙️ 설정")
 
-    # --- 키 로드(화면에 입력칸 노출 없음) ---
+    # --- 키 로드(입력칸 없음) ---
     openai_secret = get_secret("OPENAI_API_KEY")
     pinecone_secret = get_secret("PINECONE_API_KEY")
-
-    # 세션에 주입
     st.session_state.OPENAI_API_KEY = openai_secret
     st.session_state.PINECONE_API_KEY = pinecone_secret
 
-    # 상태만 표시 (값은 출력하지 않음)
     if openai_secret:
         st.markdown("✅ **OpenAI API Key**: 설정됨")
     else:
-        st.error("❌ OpenAI API Key가 없습니다. `.streamlit/secrets.toml` 또는 환경변수로 설정하세요.")
-
+        st.error("❌ OpenAI API Key가 없습니다. `.streamlit/secrets.toml`에 넣어주세요.")
     if pinecone_secret:
         st.markdown("✅ **Pinecone API Key**: 설정됨")
     else:
-        st.error("❌ Pinecone API Key가 없습니다. `.streamlit/secrets.toml` 또는 환경변수로 설정하세요.")
+        st.error("❌ Pinecone API Key가 없습니다. `.streamlit/secrets.toml`에 넣어주세요.")
 
-    # base_url도 secrets.toml 에서만 가져옴
+    # base_url도 secrets.toml 에서만
     base_url = get_secret("OPENAI_BASE_URL", "")
 
+    # 🔒 위젯 잠금 토글 (기본: true)
+    locked = str(get_secret("LOCK_SETTINGS", "true")).lower() == "true"
+
     st.divider()
-    # 비민감 설정만 노출
-    EMBEDDING_MODEL_NAME = st.text_input("Embedding 모델", value=DEFAULTS["EMBEDDING_MODEL_NAME"])
-    LLM_MODEL_NAME = st.text_input("LLM 모델", value=DEFAULTS["LLM_MODEL_NAME"])
-    PINECONE_INDEX_NAME = st.text_input("Pinecone 인덱스", value=DEFAULTS["PINECONE_INDEX_NAME"])
+    # 비민감 설정(읽기 전용 위젯)
+    EMBEDDING_MODEL_NAME = st.text_input(
+        "Embedding 모델", value=DEFAULTS["EMBEDDING_MODEL_NAME"], disabled=locked
+    )
+    LLM_MODEL_NAME = st.text_input(
+        "LLM 모델", value=DEFAULTS["LLM_MODEL_NAME"], disabled=locked
+    )
+    PINECONE_INDEX_NAME = st.text_input(
+        "Pinecone 인덱스", value=DEFAULTS["PINECONE_INDEX_NAME"], disabled=locked
+    )
 
     st.subheader("RAG 파라미터")
-    vec_w = st.slider("벡터 가중치", 0.0, 1.0, float(DEFAULTS["DEFAULT_VECTOR_WEIGHT"]))
+    vec_w = st.slider("벡터 가중치", 0.0, 1.0, float(DEFAULTS["DEFAULT_VECTOR_WEIGHT"]), disabled=locked)
     bm25_w = 1.0 - vec_w
-    top_k = st.number_input("Vector TopK", 1, 200, int(DEFAULTS["DEFAULT_TOP_K"]))
-    ctx_n = st.number_input("Context TopN", 1, 20, int(DEFAULTS["DEFAULT_CONTEXT_TOP_N"]))
-    max_ctx_chars = st.number_input("Context 길이(문자)", 200, 8000, int(DEFAULTS["DEFAULT_CONTEXT_CHARS"]))
+    top_k = st.number_input("Vector TopK", 1, 200, int(DEFAULTS["DEFAULT_TOP_K"]), disabled=locked)
+    ctx_n = st.number_input("Context TopN", 1, 20, int(DEFAULTS["DEFAULT_CONTEXT_TOP_N"]), disabled=locked)
+    max_ctx_chars = st.number_input("Context 길이(문자)", 200, 8000, int(DEFAULTS["DEFAULT_CONTEXT_CHARS"]), disabled=locked)
 
-# 키가 없으면 실행 중단 (민감정보 입력창 노출 방지)
+# 키 없으면 중단
 if not st.session_state.get("OPENAI_API_KEY") or not st.session_state.get("PINECONE_API_KEY"):
     st.stop()
 
