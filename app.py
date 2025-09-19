@@ -16,12 +16,8 @@ from openai import OpenAI
 # ----------------------------
 
 def get_secret(key: str, default: str = "") -> str:
-    # 1) Streamlit secrets → 2) env → 3) default
-    return (
-        st.secrets.get(key)  # type: ignore
-        if hasattr(st, "secrets") and key in st.secrets  # type: ignore
-        else os.getenv(key, default)
-    )
+    # 오직 Streamlit secrets.toml 만 사용
+    return st.secrets.get(key, default)  # type: ignore
 
 DEFAULTS = {
     "EMBEDDING_MODEL_NAME": get_secret("EMBEDDING_MODEL_NAME", "sentence-transformers/all-MiniLM-L6-v2"),
@@ -41,23 +37,31 @@ st.title("🤖 RAG Chatbot (Pinecone + BM25 + OpenAI)")
 
 with st.sidebar:
     st.header("⚙️ 설정")
-    # API Keys (masked input; kept in-memory session only)
-    if "OPENAI_API_KEY" not in st.session_state:
-        st.session_state.OPENAI_API_KEY = get_secret("OPENAI_API_KEY")
-    if "PINECONE_API_KEY" not in st.session_state:
-        st.session_state.PINECONE_API_KEY = get_secret("PINECONE_API_KEY")
 
-    st.session_state.OPENAI_API_KEY = st.text_input(
-        "OpenAI API Key", value=st.session_state.OPENAI_API_KEY, type="password"
-    )
-    st.session_state.PINECONE_API_KEY = st.text_input(
-        "Pinecone API Key", value=st.session_state.PINECONE_API_KEY, type="password"
-    )
+    # --- 키 로드(화면에 입력칸 노출 없음) ---
+    openai_secret = get_secret("OPENAI_API_KEY")
+    pinecone_secret = get_secret("PINECONE_API_KEY")
 
-    # Optional: custom base_url (for Azure/OpenRouter 등)
-    base_url = st.text_input("OpenAI Base URL (선택)", value=os.getenv("OPENAI_BASE_URL", ""))
+    # 세션에 주입
+    st.session_state.OPENAI_API_KEY = openai_secret
+    st.session_state.PINECONE_API_KEY = pinecone_secret
+
+    # 상태만 표시 (값은 출력하지 않음)
+    if openai_secret:
+        st.markdown("✅ **OpenAI API Key**: 설정됨")
+    else:
+        st.error("❌ OpenAI API Key가 없습니다. `.streamlit/secrets.toml` 또는 환경변수로 설정하세요.")
+
+    if pinecone_secret:
+        st.markdown("✅ **Pinecone API Key**: 설정됨")
+    else:
+        st.error("❌ Pinecone API Key가 없습니다. `.streamlit/secrets.toml` 또는 환경변수로 설정하세요.")
+
+    # base_url도 secrets.toml 에서만 가져옴
+    base_url = get_secret("OPENAI_BASE_URL", "")
 
     st.divider()
+    # 비민감 설정만 노출
     EMBEDDING_MODEL_NAME = st.text_input("Embedding 모델", value=DEFAULTS["EMBEDDING_MODEL_NAME"])
     LLM_MODEL_NAME = st.text_input("LLM 모델", value=DEFAULTS["LLM_MODEL_NAME"])
     PINECONE_INDEX_NAME = st.text_input("Pinecone 인덱스", value=DEFAULTS["PINECONE_INDEX_NAME"])
@@ -68,6 +72,10 @@ with st.sidebar:
     top_k = st.number_input("Vector TopK", 1, 200, int(DEFAULTS["DEFAULT_TOP_K"]))
     ctx_n = st.number_input("Context TopN", 1, 20, int(DEFAULTS["DEFAULT_CONTEXT_TOP_N"]))
     max_ctx_chars = st.number_input("Context 길이(문자)", 200, 8000, int(DEFAULTS["DEFAULT_CONTEXT_CHARS"]))
+
+# 키가 없으면 실행 중단 (민감정보 입력창 노출 방지)
+if not st.session_state.get("OPENAI_API_KEY") or not st.session_state.get("PINECONE_API_KEY"):
+    st.stop()
 
 # ----------------------------
 # Caches
@@ -198,7 +206,7 @@ if user_input:
         with st.spinner("검색 및 생성 중…"):
             try:
                 embedder = load_embedder(EMBEDDING_MODEL_NAME)
-                pc = init_pinecone(st.session_state.PINECONE_API_KEY)
+                pc = init_pinecone(st.session_state.OPENAI_API_KEY and st.session_state.PINECONE_API_KEY)  # 키 존재 보장됨
                 index = get_index(pc, PINECONE_INDEX_NAME)
 
                 candidates = vector_search(index, embedder, user_input, top_k=top_k)
