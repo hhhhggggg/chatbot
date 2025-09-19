@@ -33,7 +33,7 @@ DEFAULTS = {
 # UI — Sidebar
 # ----------------------------
 st.set_page_config(page_title="RAG Chatbot", page_icon="🤖", layout="wide")
-st.title("🤖 RAG Chatbot (Pinecone + BM25 + OpenAI)")
+st.title("유니베라 챗봇")
 
 with st.sidebar:
     st.header("⚙️ 설정")
