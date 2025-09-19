@@ -1,5 +1,4 @@
 # app.py
-import os
 import re
 import numpy as np
 import streamlit as st
@@ -30,10 +29,37 @@ DEFAULTS = {
 }
 
 # ----------------------------
-# UI — Sidebar
+# UI — Page Config & Sidebar
 # ----------------------------
-st.set_page_config(page_title="RAG Chatbot", page_icon="🤖", layout="wide")
-st.title("유니베라 챗봇")
+st.set_page_config(page_title="유니베라 챗봇", page_icon="🤖", layout="wide")
+
+# CSS 커스터마이징 (ChatGPT 느낌 말풍선)
+st.markdown(
+    """
+    <style>
+    body {
+        background-color: #f7f7f8;
+    }
+    div[data-testid="stChatMessage"] {
+        padding: 0.6rem 1rem;
+        border-radius: 1rem;
+        margin-bottom: 0.8rem;
+        max-width: 80%;
+    }
+    div[data-testid="stChatMessage"][data-testid*="user"] {
+        background-color: #DCF8C6;
+        align-self: flex-end;
+    }
+    div[data-testid="stChatMessage"][data-testid*="assistant"] {
+        background-color: #F1F0F0;
+        align-self: flex-start;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+st.title("🤖 유니베라 챗봇")
 
 with st.sidebar:
     st.header("⚙️ 설정")
@@ -60,7 +86,7 @@ with st.sidebar:
     locked = str(get_secret("LOCK_SETTINGS", "true")).lower() == "true"
 
     st.divider()
-    # 비민감 설정(읽기 전용 위젯)
+    st.subheader("모델 설정")
     EMBEDDING_MODEL_NAME = st.text_input(
         "Embedding 모델", value=DEFAULTS["EMBEDDING_MODEL_NAME"], disabled=locked
     )
@@ -91,14 +117,12 @@ def load_embedder(name: str):
 
 @st.cache_resource(show_spinner=True)
 def init_pinecone(_api_key: str):
-    """언더스코어로 시작하는 인자는 Streamlit이 해시하지 않음"""
     if not _api_key:
         raise ValueError("Pinecone API 키가 필요합니다.")
     return Pinecone(api_key=_api_key)
 
 @st.cache_resource(show_spinner=False)
 def get_index(_pc: Pinecone, index_name: str):
-    """언더스코어로 시작하는 인자는 Streamlit이 해시하지 않음"""
     return _pc.Index(index_name)
 
 # ----------------------------
@@ -197,34 +221,36 @@ SYSTEM_PROMPT = (
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-for m in st.session_state.messages:
-    with st.chat_message(m["role"]):
-        st.markdown(m["content"])
+chat_container = st.container()
 
-user_input = st.chat_input("질문을 입력하세요…")
+with chat_container:
+    for m in st.session_state.messages:
+        if m["role"] == "user":
+            with st.chat_message("user", avatar="👤"):
+                st.markdown(m["content"])
+        else:
+            with st.chat_message("assistant", avatar="🤖"):
+                st.markdown(m["content"])
+
+user_input = st.chat_input("메시지를 입력하세요...")
 if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
-    with st.chat_message("user"):
+    with st.chat_message("user", avatar="👤"):
         st.markdown(user_input)
 
-    with st.chat_message("assistant"):
-        with st.spinner("검색 및 생성 중…"):
+    with st.chat_message("assistant", avatar="🤖"):
+        with st.spinner("검색 및 답변 생성 중..."):
             try:
                 embedder = load_embedder(EMBEDDING_MODEL_NAME)
-                pc = init_pinecone(st.session_state.OPENAI_API_KEY and st.session_state.PINECONE_API_KEY)  # 키 존재 보장됨
+                pc = init_pinecone(st.session_state.PINECONE_API_KEY)
                 index = get_index(pc, PINECONE_INDEX_NAME)
 
                 candidates = vector_search(index, embedder, user_input, top_k=top_k)
                 contexts = build_context(user_input, candidates, vec_w, bm25_w, ctx_n, max_ctx_chars)
 
-                context_text = "\n\n".join(
-                    [f"[#{i+1}] {c['chunk']}" for i, c in enumerate(contexts)]
-                )
+                context_text = "\n\n".join([f"[#{i+1}] {c['chunk']}" for i, c in enumerate(contexts)])
                 citations = "\n".join(
-                    [
-                        f"- [#{i+1}] {c.get('title') or c.get('source') or c.get('url') or c['id']}"
-                        for i, c in enumerate(contexts)
-                    ]
+                    [f"- [#{i+1}] {c.get('title') or c.get('source') or c.get('url') or c['id']}" for i, c in enumerate(contexts)]
                 )
 
                 messages = [
@@ -249,5 +275,6 @@ if user_input:
                 final = answer.strip()
                 st.markdown(final)
                 st.session_state.messages.append({"role": "assistant", "content": final})
+
             except Exception as e:
                 st.error(f"오류: {e}")
